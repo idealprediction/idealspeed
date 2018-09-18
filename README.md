@@ -8,5 +8,11 @@ Ideal Prediction is a company focused on data science, mainly in the financial i
 The following performance tests are available:
 1. File types - Test the performance of various file types, e.g. CSV, feather, and pickle, containing different column types (float, integer, timestamp, etc). 
 
+### Run performance tests 
+```
+py.test
+py.test -s # disables stdout capture so print results can be displayed
+```
+
 ## LICENSE
 This code is made publically available under an MIT license to help the general data science community.
