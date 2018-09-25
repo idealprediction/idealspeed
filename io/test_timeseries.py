@@ -3,6 +3,7 @@
 # run "py.test -s" to disable stdout capture to see the file size results
 import os
 import pandas as pd
+import pystore
 
 
 def test_setup_timeseries():
@@ -10,7 +11,7 @@ def test_setup_timeseries():
         save to various file formats in the cache 
     """
     # read source DataFrame - index: datetime[64], columns: bid (float), ask (float)
-    df = pd.read_pickle('../data/ts_float.pkl')
+    df = pd.read_pickle('../data/ts_float32.pkl')
 
     # write to cache
     path = '../cache'
@@ -21,17 +22,16 @@ def test_setup_timeseries():
     df.to_csv('../cache/ts_float.csv.gz', compression='gzip')
     df.to_parquet('../cache/ts_float.parq')
     df.to_parquet('../cache/ts_float.parq.gz', compression='gzip')
+    df.to_parquet('../cache/ts_float.parq.snappy', compression='snappy')
     df.to_pickle('../cache/ts_float.pkl')
     df.to_pickle('../cache/ts_float.pkl.gz', compression='gzip')
-
+    df.to_pickle('../cache/ts_float.pkl', compression='snappy')
 
 def read_ts_float_csv():
     df = pd.read_csv('../cache/ts_float.csv')
 
-
 def read_ts_float_csv_gz():
     df = pd.read_csv('../cache/ts_float.csv.gz', compression='gzip')
-
 
 def read_ts_float_pickle():
     df = pd.read_pickle('../cache/ts_float.pkl')
@@ -40,7 +40,6 @@ def read_ts_float_pickle():
 def read_ts_float_pickle_gz():
     df = pd.read_pickle('../cache/ts_float.pkl.gz', compression='gzip')
 
-
 def read_ts_float_parquet():
     df = pd.read_parquet('../cache/ts_float.parq')
 
@@ -48,6 +47,8 @@ def read_ts_float_parquet():
 def read_ts_float_parquet_gz(nthreads=1):
     df = pd.read_parquet('../cache/ts_float.parq.gz', engine='pyarrow', nthreads=nthreads)
 
+def read_ts_float_parquet_snappy(nthreads=1):
+    df = pd.read_parquet('../cache/ts_float.parq.snappy', engine='pyarrow', nthreads=nthreads)
 
 # these functions use the benchmark fixture in py.test
 # see https://github.com/ionelmc/pytest-benchmark
@@ -58,22 +59,20 @@ def test_read_ts_float_csv(benchmark):
 def test_read_ts_float_csv_gz(benchmark):
     benchmark(read_ts_float_csv_gz)
 
-
 def test_read_ts_float_pickle(benchmark):
     benchmark(read_ts_float_pickle)
-
 
 def test_read_ts_float_pickle_gz(benchmark):
     benchmark(read_ts_float_pickle_gz)
 
-
 def test_read_ts_float_parquet(benchmark):
     benchmark(read_ts_float_parquet)
-
 
 def test_read_ts_float_parquet_gz(benchmark):
     benchmark(read_ts_float_parquet_gz)
 
+def test_read_ts_float_parquet_snappy(benchmark):
+    benchmark(read_ts_float_parquet_snappy)
 
 def test_read_ts_float_parquet_gz_4_threads(benchmark):
     benchmark(read_ts_float_parquet_gz, 4)
