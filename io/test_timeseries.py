@@ -4,7 +4,10 @@
 import os
 import pandas as pd
 import pystore
+from time import sleep
 
+WITH_NETWORK_SIMULATION = True
+S3_SPEED = 20000000.0
 
 def test_setup_timeseries():
     """ setup: read the original source DataFrame and 
@@ -25,36 +28,74 @@ def test_setup_timeseries():
     df.to_parquet('../cache/ts_float.parq.snappy', compression='snappy')
     df.to_pickle('../cache/ts_float.pkl')
     df.to_pickle('../cache/ts_float.pkl.gz', compression='gzip')
-    df.to_pickle('../cache/ts_float.pkl', compression='snappy')
+    df.to_hdf('../cache/ts_float_no_compr.hdf', key='df', complevel=0)
+    df.to_hdf('../cache/ts_float_snappy.hdf', key='df', complib='blosc:snappy', complevel=9)
+    df.to_hdf('../cache/ts_float_lz4.hdf', key='df', complib='blosc:lz4', complevel=9)
 
 def read_ts_float_csv():
+    if WITH_NETWORK_SIMULATION:
+        file_size = os.path.getsize('../cache/ts_float.pkl')
+        sleep(file_size/S3_SPEED)
     df = pd.read_csv('../cache/ts_float.csv')
 
 def read_ts_float_csv_gz():
+    if WITH_NETWORK_SIMULATION:
+        file_size = os.path.getsize('../cache/ts_float.pkl')
+        sleep(file_size/S3_SPEED)
     df = pd.read_csv('../cache/ts_float.csv.gz', compression='gzip')
 
 def read_ts_float_pickle():
+    if WITH_NETWORK_SIMULATION:
+        file_size = os.path.getsize('../cache/ts_float.pkl')
+        sleep(file_size/S3_SPEED)
     df = pd.read_pickle('../cache/ts_float.pkl')
 
-
 def read_ts_float_pickle_gz():
+    if WITH_NETWORK_SIMULATION:
+        file_size = os.path.getsize('../cache/ts_float.pkl')
+        sleep(file_size/S3_SPEED)
     df = pd.read_pickle('../cache/ts_float.pkl.gz', compression='gzip')
 
 def read_ts_float_parquet():
+    if WITH_NETWORK_SIMULATION:
+        file_size = os.path.getsize('../cache/ts_float.pkl')
+        sleep(file_size/S3_SPEED)
     df = pd.read_parquet('../cache/ts_float.parq')
 
-
 def read_ts_float_parquet_gz(nthreads=1):
+    if WITH_NETWORK_SIMULATION:
+        file_size = os.path.getsize('../cache/ts_float.pkl')
+        sleep(file_size/S3_SPEED)
     df = pd.read_parquet('../cache/ts_float.parq.gz', engine='pyarrow', nthreads=nthreads)
 
 def read_ts_float_parquet_snappy(nthreads=1):
+    if WITH_NETWORK_SIMULATION:
+        file_size = os.path.getsize('../cache/ts_float.pkl')
+        sleep(file_size/S3_SPEED)
     df = pd.read_parquet('../cache/ts_float.parq.snappy', engine='pyarrow', nthreads=nthreads)
+
+def read_ts_float_hdf_no_compr():
+    if WITH_NETWORK_SIMULATION:
+        file_size = os.path.getsize('../cache/ts_float.pkl')
+        sleep(file_size/S3_SPEED)
+    df = pd.read_hdf('../cache/ts_float_no_compr.hdf')
+
+def read_ts_float_hdf_snappy():
+    if WITH_NETWORK_SIMULATION:
+        file_size = os.path.getsize('../cache/ts_float.pkl')
+        sleep(file_size/S3_SPEED)
+    df = pd.read_hdf('../cache/ts_float_snappy.hdf')
+
+def read_ts_float_hdf_lz4():
+    if WITH_NETWORK_SIMULATION:
+        file_size = os.path.getsize('../cache/ts_float.pkl')
+        sleep(file_size/S3_SPEED)
+    df = pd.read_hdf('../cache/ts_float_lz4.hdf')
 
 # these functions use the benchmark fixture in py.test
 # see https://github.com/ionelmc/pytest-benchmark
 def test_read_ts_float_csv(benchmark):
     benchmark(read_ts_float_csv)
-
 
 def test_read_ts_float_csv_gz(benchmark):
     benchmark(read_ts_float_csv_gz)
@@ -77,6 +118,14 @@ def test_read_ts_float_parquet_snappy(benchmark):
 def test_read_ts_float_parquet_gz_4_threads(benchmark):
     benchmark(read_ts_float_parquet_gz, 4)
 
+def test_read_ts_float_hdf_no_compr(benchmark):
+    benchmark(read_ts_float_hdf_no_compr)
+
+def test_read_ts_float_hdf_snappy(benchmark):
+    benchmark(read_ts_float_hdf_snappy)
+
+def test_read_ts_float_hdf_lz4(benchmark):
+    benchmark(read_ts_float_hdf_lz4)
 
 def test_display_file_size():
     """  show the file size for each file type """
