@@ -3,11 +3,26 @@
 # run "py.test -s" to disable stdout capture to see the file size results
 import os
 import pandas as pd
+import numpy as np
 import pystore
 from time import sleep
+import h5py
+import lz4.frame
 
 WITH_NETWORK_SIMULATION = True
 S3_SPEED = 20000000.0
+
+def snappy_compress(path):
+        path_to_store = path+'.snappy'
+
+        with open(path, 'rb') as in_file:
+          with open(path_to_store, 'w') as out_file:
+            snappy.stream_compress(in_file, out_file)
+            out_file.close()
+            in_file.close()
+
+        return path_to_store
+
 
 def test_setup_timeseries():
     """ setup: read the original source DataFrame and 
@@ -31,6 +46,16 @@ def test_setup_timeseries():
     df.to_hdf('../cache/ts_float_no_compr.hdf', key='df', complevel=0)
     df.to_hdf('../cache/ts_float_snappy.hdf', key='df', complib='blosc:snappy', complevel=9)
     df.to_hdf('../cache/ts_float_lz4.hdf', key='df', complib='blosc:lz4', complevel=9)
+    np.save('../cache/ts_float_numpy.npy', df.values)
+
+    # hdf5 numpy array
+    h5f = h5py.File('../cache/ts_float_numpy.h5', 'w')
+    h5f.create_dataset('data', data=df.values)
+    h5f.close()
+
+    #lz4 numpy array
+    with lz4.frame.open('../cache/ts_float_numpy.lz4', mode='wb') as fp:
+        bytes_written = fp.write(np.ascontiguousarray(df.values))
 
 def read_ts_float_csv():
     if WITH_NETWORK_SIMULATION:
@@ -92,6 +117,33 @@ def read_ts_float_hdf_lz4():
         sleep(file_size/S3_SPEED)
     df = pd.read_hdf('../cache/ts_float_lz4.hdf')
 
+def read_ts_float_numpy():
+    if WITH_NETWORK_SIMULATION:
+        file_size = os.path.getsize('../cache/ts_float_numpy.npy')
+        sleep(file_size/S3_SPEED)
+    numpy_matrix = np.load('../cache/ts_float_numpy.npy')
+    df = pd.DataFrame(numpy_matrix)
+
+def read_ts_float_numpy_hdf():
+    if WITH_NETWORK_SIMULATION:
+        file_size = os.path.getsize('../cache/ts_float_numpy.h5')
+        sleep(file_size/S3_SPEED)
+
+    h5f = h5py.File('../cache/ts_float_numpy.h5','r')
+    numpy_matrix = h5f['data'][:]
+    df = pd.DataFrame(numpy_matrix)
+
+
+def read_ts_float_numpy_lz4():
+    if WITH_NETWORK_SIMULATION:
+        file_size = os.path.getsize('../cache/ts_float_numpy.lz4')
+        sleep(file_size/S3_SPEED)
+
+    with lz4.frame.open('../cache/ts_float_numpy.lz4', mode='r') as fp:
+        output_data = fp.read()
+        numpy_matrix = np.asfortranarray(output_data)
+        df = pd.DataFrame(numpy_matrix)
+
 # these functions use the benchmark fixture in py.test
 # see https://github.com/ionelmc/pytest-benchmark
 def test_read_ts_float_csv(benchmark):
@@ -126,6 +178,15 @@ def test_read_ts_float_hdf_snappy(benchmark):
 
 def test_read_ts_float_hdf_lz4(benchmark):
     benchmark(read_ts_float_hdf_lz4)
+
+def test_read_ts_float_numpy(benchmark):
+    benchmark(read_ts_float_numpy)
+
+def test_read_ts_float_numpy_hdf(benchmark):
+    benchmark(read_ts_float_numpy_hdf)
+
+def test_read_ts_float_numpy_lz4(benchmark):
+    benchmark(read_ts_float_numpy_lz4)
 
 def test_display_file_size():
     """  show the file size for each file type """
