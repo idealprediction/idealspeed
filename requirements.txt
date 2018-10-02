@@ -1,6 +1,7 @@
-pandas>=0.23
+h5py
+lz4
+pandas>=0.23.4
+pyarrow
 pytest
 pytest-benchmark
 python-snappy
-h5py
-lz4
