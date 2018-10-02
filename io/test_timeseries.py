@@ -1,21 +1,27 @@
 # performance tests for read/write io for time series
-# run "py.test" in the command line to run tests
-# run "py.test -s" to disable stdout capture to see the file size results
+#
+# usage:
+#   run "py.test" in the command line to run tests
+#   run "py.test -s" to disable stdout capture to see the file size results
+
 import os
 import pandas as pd
 import numpy as np
 import h5py
 import lz4.frame
 
+
 # global variables for the data and cache paths
 dirname, filename = os.path.split(os.path.abspath(__file__))
 CACHE_PATH = os.path.join(dirname, '../cache')
 DATA_PATH = os.path.join(dirname, '../data')
 
+
 # global variables for simulating network time (not currently used)
 # from time import sleep
 # WITH_NETWORK_SIMULATION = False
 # S3_SPEED = 20000000.0
+
 
 def snappy_compress(path):
         path_to_store = path+'.snappy'
@@ -34,24 +40,24 @@ def test_setup_timeseries():
         save to various file formats in the cache 
     """
     # read source DataFrame - index: datetime[64], columns: bid (float), ask (float)
-    df = pd.read_pickle(os.path.join(DATA_PATH, 'ts_float.pkl'))
+    df = pd.read_pickle(os.path.join(DATA_PATH, 'ts_float32.pkl'))
 
     # create the cache path, if needed
     if not os.path.exists(CACHE_PATH):
         os.makedirs(CACHE_PATH)
 
     # CSV
-    df.to_csv(os.path.join(CACHE_PATH, 'ts_float.csv'))
-    df.to_csv(os.path.join(CACHE_PATH, 'ts_float.csv.gz'), compression='gzip')
+    df.to_csv(os.path.join(CACHE_PATH, 'ts_float_csv.csv'))
+    df.to_csv(os.path.join(CACHE_PATH, 'ts_float_csv_gz.csv.gz'), compression='gzip')
 
     # parquet
-    df.to_parquet(os.path.join(CACHE_PATH, 'ts_float.parq'))
-    df.to_parquet(os.path.join(CACHE_PATH, 'ts_float.parq.gz'), compression='gzip')
-    df.to_parquet(os.path.join(CACHE_PATH, 'ts_float.parq.snappy'), compression='snappy')
+    df.to_parquet(os.path.join(CACHE_PATH, 'ts_float_parquet.parq'))
+    df.to_parquet(os.path.join(CACHE_PATH, 'ts_float_parquet_gz.parq.gz'), compression='gzip')
+    df.to_parquet(os.path.join(CACHE_PATH, 'ts_float_parquet_snappy.parq.snappy'), compression='snappy')
 
     # pickle
-    df.to_pickle(os.path.join(CACHE_PATH, 'ts_float.pkl'))
-    df.to_pickle(os.path.join(CACHE_PATH, 'ts_float.pkl.gz'), compression='gzip')
+    df.to_pickle(os.path.join(CACHE_PATH, 'ts_float_pickle.pkl'))
+    df.to_pickle(os.path.join(CACHE_PATH, 'ts_float_pickle_gz.pkl.gz'), compression='gzip')
 
     # TODO: pd.DataFrame.to_hdf() hangs the process
     # df.to_hdf('../cache/ts_float_no_compr.hdf', key='df', complevel=0)
@@ -62,12 +68,12 @@ def test_setup_timeseries():
     np.save(os.path.join(CACHE_PATH, 'ts_float_numpy.npy'), df.values)
 
     # hdf5 numpy array
-    h5f = h5py.File(os.path.join(CACHE_PATH, 'ts_float_numpy.h5'), 'w')
+    h5f = h5py.File(os.path.join(CACHE_PATH, 'ts_float_numpy_hdf.h5'), 'w')
     h5f.create_dataset('data', data=df.values)
     h5f.close()
 
     #lz4 numpy array
-    with lz4.frame.open(os.path.join(CACHE_PATH, 'ts_float_numpy.lz4'), mode='wb') as fp:
+    with lz4.frame.open(os.path.join(CACHE_PATH, 'ts_float_numpy_lz4.lz4'), mode='wb') as fp:
         bytes_written = fp.write(np.ascontiguousarray(df.values))
 
 
@@ -77,37 +83,37 @@ def test_setup_timeseries():
 #         sleep(file_size / S3_SPEED)
 
 def read_ts_float_csv():
-    fn = os.path.join(CACHE_PATH, 'ts_float.csv')
+    fn = os.path.join(CACHE_PATH, 'ts_float_csv.csv')
     df = pd.read_csv(fn)
 
 
 def read_ts_float_csv_gz():
-    fn = os.path.join(CACHE_PATH, 'ts_float.csv.gz')
+    fn = os.path.join(CACHE_PATH, 'ts_float_csv_gz.csv.gz')
     df = pd.read_csv(fn, compression='gzip')
 
 
 def read_ts_float_pickle():
-    fn = os.path.join(CACHE_PATH, 'ts_float.pkl')
+    fn = os.path.join(CACHE_PATH, 'ts_float_pickle.pkl')
     df = pd.read_pickle(fn)
 
 
 def read_ts_float_pickle_gz():
-    fn = os.path.join(CACHE_PATH, 'ts_float.pkl.gz')
+    fn = os.path.join(CACHE_PATH, 'ts_float_pickle_gz.pkl.gz')
     df = pd.read_pickle(fn, compression='gzip')
 
 
 def read_ts_float_parquet():
-    fn = os.path.join(CACHE_PATH, 'ts_float.parq')
+    fn = os.path.join(CACHE_PATH, 'ts_float_parquet.parq')
     df = pd.read_parquet(fn)
 
 
 def read_ts_float_parquet_gz(nthreads=1):
-    fn = os.path.join(CACHE_PATH, 'ts_float.parq.gz')
+    fn = os.path.join(CACHE_PATH, 'ts_float_parquet_gz.parq.gz')
     df = pd.read_parquet(fn, engine='pyarrow', nthreads=nthreads)
 
 
 def read_ts_float_parquet_snappy(nthreads=1):
-    fn = os.path.join(CACHE_PATH, 'ts_float.parq.snappy')
+    fn = os.path.join(CACHE_PATH, 'ts_float_parquet_snappy.parq.snappy')
     df = pd.read_parquet(fn, engine='pyarrow', nthreads=nthreads)
 
 
@@ -133,14 +139,14 @@ def read_ts_float_numpy():
 
 
 def read_ts_float_numpy_hdf():
-    fn = os.path.join(CACHE_PATH, 'ts_float_numpy.h5')
+    fn = os.path.join(CACHE_PATH, 'ts_float_numpy_hdf.h5')
     h5f = h5py.File(fn, 'r')
     numpy_matrix = h5f['data'][:]
     df = pd.DataFrame(numpy_matrix)
 
 
 def read_ts_float_numpy_lz4():
-    fn = os.path.join(CACHE_PATH, 'ts_float_numpy.lz4')
+    fn = os.path.join(CACHE_PATH, 'ts_float_numpy_lz4.lz4')
     with lz4.frame.open(fn, mode='r') as fp:
         output_data = fp.read()
         numpy_matrix = np.asfortranarray(output_data)
@@ -189,8 +195,8 @@ def test_read_ts_float_parquet_gz(benchmark):
     benchmark(read_ts_float_parquet_gz)
 
 
-def test_read_ts_float_parquet_gz_4_threads(benchmark):
-    benchmark(read_ts_float_parquet_gz, 4)
+# def test_read_ts_float_parquet_gz_4_threads(benchmark):
+#     benchmark(read_ts_float_parquet_gz, 4)
 
 
 def test_read_ts_float_parquet_snappy(benchmark):
@@ -213,8 +219,3 @@ def test_display_file_size():
     size_list = [round(sz, 2) for sz in size_list]
     file_dict = dict(zip(file_list, size_list))
     print('File Size (MB)\n %s' % file_dict)
-
-    # uncomment to show the each file and size per row
-    # print('File Size (MB)\n')
-    # for key, value in file_dict.iteritems():
-    #     print('%s: %0.1f MB' % (key, value))
