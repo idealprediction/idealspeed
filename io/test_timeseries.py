@@ -57,6 +57,15 @@ def test_setup_timeseries():
     # h5f.create_dataset('data', data=np.array([column_names, df.reset_index().values]))
     # h5f.close()
 
+    # Convert datetime64 to int
+    df.index = df.index.astype(int)
+    df.to_pickle(os.path.join(CACHE_PATH, 'ts_float_int_timestamp.pkl'))
+
+    column_names = np.array(np.insert(df.columns.values, 0, df.index.name), dtype='string')
+    index = np.array(df.index, dtype='int')
+    data = np.array(df.values, dtype='float')
+    np.save(os.path.join(CACHE_PATH, 'ts_float_numpy_int_datetime.npy'), np.array([column_names, index, data]))
+
 
 # def network_simulation(filename):
 #     if WITH_NETWORK_SIMULATION:
@@ -126,6 +135,22 @@ def read_ts_float_numpy_hdf():
     df = pd.DataFrame(data=numpy_matrix[1][:, 1:], columns=numpy_matrix[0][1:], index=numpy_matrix[1][:, 0])
     df.index.names = [numpy_matrix[0][0]]
 
+def read_ts_pickle_int_datetime():
+
+    df = pd.read_pickle(os.path.join(CACHE_PATH, 'ts_float_int_timestamp.pkl'))
+    df.index = pd.to_datetime(df.index)
+
+def read_ts_pickle_int_datetime_no_conversion():
+
+    df = pd.read_pickle(os.path.join(CACHE_PATH, 'ts_float_int_timestamp.pkl'))
+
+def read_ts_float_numpy_int_datetime():
+    fn = os.path.join(CACHE_PATH, 'ts_float_numpy_int_datetime.npy')
+    numpy_matrix = np.load(fn)
+
+    # Deconstruct the dataframe from numpy array with column names and index
+    df = pd.DataFrame(data=numpy_matrix[2], columns=numpy_matrix[0][1:], index=numpy_matrix[1])
+    df.index.names = [numpy_matrix[0][0]]
 
 # these functions use the benchmark fixture in py.test
 # see https://github.com/ionelmc/pytest-benchmark
@@ -161,6 +186,15 @@ def test_read_ts_float_pickle(benchmark):
 
 def test_read_ts_float_pickle_gz(benchmark):
     benchmark(read_ts_float_pickle_gz)
+
+def test_read_ts_int_datetime(benchmark):
+    benchmark(read_ts_pickle_int_datetime)
+
+def test_read_ts_int_datetime_no_conversion(benchmark):
+    benchmark(read_ts_pickle_int_datetime_no_conversion)
+
+def test_read_ts_float_numpy_int_datetime(benchmark):
+    benchmark(read_ts_float_numpy_int_datetime)
 
 # def test_read_ts_float_numpy_hdf(benchmark):
 #     benchmark(read_ts_float_numpy_hdf)
