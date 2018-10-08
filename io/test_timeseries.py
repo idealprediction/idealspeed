@@ -41,9 +41,11 @@ def test_setup_timeseries():
     df.to_pickle(os.path.join(CACHE_PATH, 'ts_float.pkl.gz'), compression='gzip')
 
 
-    # numpy: Construct an array in the form [[column names], [index, values]]
-    column_names = np.insert(df.columns.values, 0, df.index.name)
-    np.save(os.path.join(CACHE_PATH, 'ts_float_numpy.npy'), np.array([column_names, df.reset_index().values]))
+    # numpy: Construct an array in the form [[column names, index(timestamp), values]]
+    column_names = np.array(np.insert(df.columns.values, 0, df.index.name), dtype='string')
+    index = np.array(df.index, dtype='datetime64')
+    data = np.array(df.values, dtype='float')
+    np.save(os.path.join(CACHE_PATH, 'ts_float_numpy.npy'), np.array([column_names, index, data]))
 
     # TODO: pd.DataFrame.to_hdf() hangs the process
     # df.to_hdf('../cache/ts_float_no_compr.hdf', key='df', complevel=0)
@@ -100,7 +102,7 @@ def read_ts_float_numpy():
     numpy_matrix = np.load(fn)
 
     # Deconstruct the dataframe from numpy array with column names and index
-    df = pd.DataFrame(data=numpy_matrix[1][:, 1:], columns=numpy_matrix[0][1:], index=numpy_matrix[1][:, 0])
+    df = pd.DataFrame(data=numpy_matrix[2], columns=numpy_matrix[0][1:], index=numpy_matrix[1])
     df.index.names = [numpy_matrix[0][0]]
 
 def read_ts_float_hdf_no_compr():
