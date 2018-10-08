@@ -4,7 +4,6 @@
 import os
 import pandas as pd
 import numpy as np
-import h5py
 import lz4.frame
 
 # global variables for the data and cache paths
@@ -16,18 +15,6 @@ DATA_PATH = os.path.join(dirname, '../data')
 # from time import sleep
 # WITH_NETWORK_SIMULATION = False
 # S3_SPEED = 20000000.0
-
-def snappy_compress(path):
-        path_to_store = path+'.snappy'
-
-        with open(path, 'rb') as in_file:
-          with open(path_to_store, 'w') as out_file:
-            snappy.stream_compress(in_file, out_file)
-            out_file.close()
-            in_file.close()
-
-        return path_to_store
-
 
 def test_setup_timeseries():
     """ setup: read the original source DataFrame and 
@@ -53,22 +40,20 @@ def test_setup_timeseries():
     df.to_pickle(os.path.join(CACHE_PATH, 'ts_float.pkl'))
     df.to_pickle(os.path.join(CACHE_PATH, 'ts_float.pkl.gz'), compression='gzip')
 
+
+    # numpy: Construct an array in the form [[column names], [index, values]]
+    column_names = np.insert(df.columns.values, 0, df.index.name)
+    np.save(os.path.join(CACHE_PATH, 'ts_float_numpy.npy'), np.array([column_names, df.reset_index().values]))
+
     # TODO: pd.DataFrame.to_hdf() hangs the process
     # df.to_hdf('../cache/ts_float_no_compr.hdf', key='df', complevel=0)
     # df.to_hdf('../cache/ts_float_snappy.hdf', key='df', complib='blosc:snappy', complevel=9)
     # df.to_hdf('../cache/ts_float_lz4.hdf', key='df', complib='blosc:lz4', complevel=9)
 
-    # numpy
-    np.save(os.path.join(CACHE_PATH, 'ts_float_numpy.npy'), df.values)
-
-    # hdf5 numpy array
-    h5f = h5py.File(os.path.join(CACHE_PATH, 'ts_float_numpy.h5'), 'w')
-    h5f.create_dataset('data', data=df.values)
-    h5f.close()
-
-    #lz4 numpy array
-    with lz4.frame.open(os.path.join(CACHE_PATH, 'ts_float_numpy.lz4'), mode='wb') as fp:
-        bytes_written = fp.write(np.ascontiguousarray(df.values))
+    # # hdf5 numpy array
+    # h5f = h5py.File(os.path.join(CACHE_PATH, 'ts_float_numpy.h5'), 'w')
+    # h5f.create_dataset('data', data=np.array([column_names, df.reset_index().values]))
+    # h5f.close()
 
 
 # def network_simulation(filename):
@@ -110,41 +95,34 @@ def read_ts_float_parquet_snappy(nthreads=1):
     fn = os.path.join(CACHE_PATH, 'ts_float.parq.snappy')
     df = pd.read_parquet(fn, engine='pyarrow', nthreads=nthreads)
 
-
-# def read_ts_float_hdf_no_compr():
-#     fn = os.path.join(CACHE_PATH, 'ts_float_no_compr.hdf')
-#     df = pd.read_hdf(fn)
-
-
-# def read_ts_float_hdf_snappy():
-#     fn = os.path.join(CACHE_PATH, 'ts_float_snappy.hdf')
-#     df = pd.read_hdf(fn)
-
-
-# def read_ts_float_hdf_lz4():
-#     fn = os.path.join(CACHE_PATH, 'ts_float_lz4.hdf')
-#     df = pd.read_hdf(fn)
-
-
 def read_ts_float_numpy():
     fn = os.path.join(CACHE_PATH, 'ts_float_numpy.npy')
     numpy_matrix = np.load(fn)
-    df = pd.DataFrame(numpy_matrix)
 
+    # Deconstruct the dataframe from numpy array with column names and index
+    df = pd.DataFrame(data=numpy_matrix[1][:, 1:], columns=numpy_matrix[0][1:], index=numpy_matrix[1][:, 0])
+    df.index.names = [numpy_matrix[0][0]]
+
+def read_ts_float_hdf_no_compr():
+    fn = os.path.join(CACHE_PATH, 'ts_float_no_compr.hdf')
+    df = pd.read_hdf(fn)
+
+
+def read_ts_float_hdf_snappy():
+    fn = os.path.join(CACHE_PATH, 'ts_float_snappy.hdf')
+    df = pd.read_hdf(fn)
+
+
+def read_ts_float_hdf_lz4():
+    fn = os.path.join(CACHE_PATH, 'ts_float_lz4.hdf')
+    df = pd.read_hdf(fn)
 
 def read_ts_float_numpy_hdf():
     fn = os.path.join(CACHE_PATH, 'ts_float_numpy.h5')
     h5f = h5py.File(fn, 'r')
     numpy_matrix = h5f['data'][:]
-    df = pd.DataFrame(numpy_matrix)
-
-
-def read_ts_float_numpy_lz4():
-    fn = os.path.join(CACHE_PATH, 'ts_float_numpy.lz4')
-    with lz4.frame.open(fn, mode='r') as fp:
-        output_data = fp.read()
-        numpy_matrix = np.asfortranarray(output_data)
-        df = pd.DataFrame(numpy_matrix)
+    df = pd.DataFrame(data=numpy_matrix[1][:, 1:], columns=numpy_matrix[0][1:], index=numpy_matrix[1][:, 0])
+    df.index.names = [numpy_matrix[0][0]]
 
 
 # these functions use the benchmark fixture in py.test
@@ -156,30 +134,8 @@ def test_read_ts_float_csv(benchmark):
 def test_read_ts_float_csv_gz(benchmark):
     benchmark(read_ts_float_csv_gz)
 
-
-# def test_read_ts_float_hdf_no_compr(benchmark):
-#     benchmark(read_ts_float_hdf_no_compr)
-
-
-# def test_read_ts_float_hdf_snappy(benchmark):
-#     benchmark(read_ts_float_hdf_snappy)
-
-
-# def test_read_ts_float_hdf_lz4(benchmark):
-#     benchmark(read_ts_float_hdf_lz4)
-
-
 def test_read_ts_float_numpy(benchmark):
     benchmark(read_ts_float_numpy)
-
-
-def test_read_ts_float_numpy_hdf(benchmark):
-    benchmark(read_ts_float_numpy_hdf)
-
-
-def test_read_ts_float_numpy_lz4(benchmark):
-    benchmark(read_ts_float_numpy_lz4)
-
 
 def test_read_ts_float_parquet(benchmark):
     benchmark(read_ts_float_parquet)
@@ -204,6 +160,19 @@ def test_read_ts_float_pickle(benchmark):
 def test_read_ts_float_pickle_gz(benchmark):
     benchmark(read_ts_float_pickle_gz)
 
+# def test_read_ts_float_numpy_hdf(benchmark):
+#     benchmark(read_ts_float_numpy_hdf)
+
+# def test_read_ts_float_hdf_no_compr(benchmark):
+#     benchmark(read_ts_float_hdf_no_compr)
+
+
+# def test_read_ts_float_hdf_snappy(benchmark):
+#     benchmark(read_ts_float_hdf_snappy)
+
+
+# def test_read_ts_float_hdf_lz4(benchmark):
+#     benchmark(read_ts_float_hdf_lz4)
 
 def test_display_file_size():
     """  show the file size in MB, rounded to 2 decimals, for each file type """
