@@ -25,5 +25,11 @@ py.test
 py.test -s # disables stdout capture so print results can be displayed
 ```
 
+### Summarize test results
+```
+py.test --benchmark-save=test # first run the tests and save benchmarks
+python results_summary.py .benchmarks/Darwin-CPython-2.7-64bit/0001_test.json # summarize results
+```
+
 ## LICENSE
 This code is made publically available under an MIT license to help the general data science community.
