@@ -28,17 +28,17 @@ def test_setup_timeseries():
         os.makedirs(CACHE_PATH)
 
     # CSV
-    df.to_csv(os.path.join(CACHE_PATH, 'ts_float.csv'))
-    df.to_csv(os.path.join(CACHE_PATH, 'ts_float.csv.gz'), compression='gzip')
+    df.to_csv(os.path.join(CACHE_PATH, 'ts_float_csv.csv'))
+    df.to_csv(os.path.join(CACHE_PATH, 'ts_float_csv_gzip.gz'), compression='gzip')
 
     # parquet
-    df.to_parquet(os.path.join(CACHE_PATH, 'ts_float.parq'))
-    df.to_parquet(os.path.join(CACHE_PATH, 'ts_float.parq.gz'), compression='gzip')
-    df.to_parquet(os.path.join(CACHE_PATH, 'ts_float.parq.snappy'), compression='snappy')
+    df.to_parquet(os.path.join(CACHE_PATH, 'ts_float_parq.parq'))
+    df.to_parquet(os.path.join(CACHE_PATH, 'ts_float_parq_gzip.gz'), compression='gzip')
+    df.to_parquet(os.path.join(CACHE_PATH, 'ts_float_parq_snappy.snappy'), compression='snappy')
 
     # pickle
-    df.to_pickle(os.path.join(CACHE_PATH, 'ts_float.pkl'))
-    df.to_pickle(os.path.join(CACHE_PATH, 'ts_float.pkl.gz'), compression='gzip')
+    df.to_pickle(os.path.join(CACHE_PATH, 'ts_float_pickle.pkl'))
+    df.to_pickle(os.path.join(CACHE_PATH, 'ts_float_pickle_gzip.gz'), compression='gzip')
 
 
     # numpy: Construct an array in the form [[column names, index(timestamp), values]]
@@ -73,37 +73,37 @@ def test_setup_timeseries():
 #         sleep(file_size / S3_SPEED)
 
 def read_ts_float_csv():
-    fn = os.path.join(CACHE_PATH, 'ts_float.csv')
+    fn = os.path.join(CACHE_PATH, 'ts_float_csv.csv')
     df = pd.read_csv(fn)
 
 
 def read_ts_float_csv_gz():
-    fn = os.path.join(CACHE_PATH, 'ts_float.csv.gz')
+    fn = os.path.join(CACHE_PATH, 'ts_float_csv_gzip.gz')
     df = pd.read_csv(fn, compression='gzip')
 
 
 def read_ts_float_pickle():
-    fn = os.path.join(CACHE_PATH, 'ts_float.pkl')
+    fn = os.path.join(CACHE_PATH, 'ts_float_pickle.pkl')
     df = pd.read_pickle(fn)
 
 
 def read_ts_float_pickle_gz():
-    fn = os.path.join(CACHE_PATH, 'ts_float.pkl.gz')
+    fn = os.path.join(CACHE_PATH, 'ts_float_pickle_gzip.gz')
     df = pd.read_pickle(fn, compression='gzip')
 
 
 def read_ts_float_parquet():
-    fn = os.path.join(CACHE_PATH, 'ts_float.parq')
+    fn = os.path.join(CACHE_PATH, 'ts_float_parq.parq')
     df = pd.read_parquet(fn)
 
 
 def read_ts_float_parquet_gz(nthreads=1):
-    fn = os.path.join(CACHE_PATH, 'ts_float.parq.gz')
+    fn = os.path.join(CACHE_PATH, 'ts_float_parq_gzip.gz')
     df = pd.read_parquet(fn, engine='pyarrow', nthreads=nthreads)
 
 
 def read_ts_float_parquet_snappy(nthreads=1):
-    fn = os.path.join(CACHE_PATH, 'ts_float.parq.snappy')
+    fn = os.path.join(CACHE_PATH, 'ts_float_parq_snappy.snappy')
     df = pd.read_parquet(fn, engine='pyarrow', nthreads=nthreads)
 
 def read_ts_float_numpy():
@@ -114,26 +114,26 @@ def read_ts_float_numpy():
     df = pd.DataFrame(data=numpy_matrix[2], columns=numpy_matrix[0][1:], index=numpy_matrix[1])
     df.index.names = [numpy_matrix[0][0]]
 
-def read_ts_float_hdf_no_compr():
-    fn = os.path.join(CACHE_PATH, 'ts_float_no_compr.hdf')
-    df = pd.read_hdf(fn)
+# def read_ts_float_hdf_no_compr():
+#     fn = os.path.join(CACHE_PATH, 'ts_float_no_compr.hdf')
+#     df = pd.read_hdf(fn)
 
 
-def read_ts_float_hdf_snappy():
-    fn = os.path.join(CACHE_PATH, 'ts_float_snappy.hdf')
-    df = pd.read_hdf(fn)
+# def read_ts_float_hdf_snappy():
+#     fn = os.path.join(CACHE_PATH, 'ts_float_snappy.hdf')
+#     df = pd.read_hdf(fn)
 
 
-def read_ts_float_hdf_lz4():
-    fn = os.path.join(CACHE_PATH, 'ts_float_lz4.hdf')
-    df = pd.read_hdf(fn)
+# def read_ts_float_hdf_lz4():
+#     fn = os.path.join(CACHE_PATH, 'ts_float_lz4.hdf')
+#     df = pd.read_hdf(fn)
 
-def read_ts_float_numpy_hdf():
-    fn = os.path.join(CACHE_PATH, 'ts_float_numpy.h5')
-    h5f = h5py.File(fn, 'r')
-    numpy_matrix = h5f['data'][:]
-    df = pd.DataFrame(data=numpy_matrix[1][:, 1:], columns=numpy_matrix[0][1:], index=numpy_matrix[1][:, 0])
-    df.index.names = [numpy_matrix[0][0]]
+# def read_ts_float_numpy_hdf():
+#     fn = os.path.join(CACHE_PATH, 'ts_float_numpy.h5')
+#     h5f = h5py.File(fn, 'r')
+#     numpy_matrix = h5f['data'][:]
+#     df = pd.DataFrame(data=numpy_matrix[1][:, 1:], columns=numpy_matrix[0][1:], index=numpy_matrix[1][:, 0])
+#     df.index.names = [numpy_matrix[0][0]]
 
 def read_ts_pickle_int_datetime():
 
@@ -158,17 +158,17 @@ def test_read_ts_float_csv(benchmark):
     benchmark(read_ts_float_csv)
 
 
-def test_read_ts_float_csv_gz(benchmark):
+def test_read_ts_float_csv_gzip(benchmark):
     benchmark(read_ts_float_csv_gz)
 
 def test_read_ts_float_numpy(benchmark):
     benchmark(read_ts_float_numpy)
 
-def test_read_ts_float_parquet(benchmark):
+def test_read_ts_float_parq(benchmark):
     benchmark(read_ts_float_parquet)
 
 
-def test_read_ts_float_parquet_gz(benchmark):
+def test_read_ts_float_parq_gzip(benchmark):
     benchmark(read_ts_float_parquet_gz)
 
 
@@ -176,7 +176,7 @@ def test_read_ts_float_parquet_gz_4_threads(benchmark):
     benchmark(read_ts_float_parquet_gz, 4)
 
 
-def test_read_ts_float_parquet_snappy(benchmark):
+def test_read_ts_float_parq_snappy(benchmark):
     benchmark(read_ts_float_parquet_snappy)
 
 
@@ -184,7 +184,7 @@ def test_read_ts_float_pickle(benchmark):
     benchmark(read_ts_float_pickle)
 
 
-def test_read_ts_float_pickle_gz(benchmark):
+def test_read_ts_float_pickle_gzip(benchmark):
     benchmark(read_ts_float_pickle_gz)
 
 def test_read_ts_int_datetime(benchmark):
