@@ -1,10 +1,10 @@
 # display the results from performance tests e.g. "py.test --benchmark-save"
 #
-# usage: 
+# usage:
 #   first run the tests and save benchmarks
-#   >> py.test --benchmark-save=mac.20181001 
+#   >> py.test --benchmark-save=mac.20181001
 #   then summarize the results
-#   >> python results_summary.py .benchmarks/Darwin-CPython-2.7-64bit/0001_mac.20181001.json 
+#   >> python results_summary.py .benchmarks/Darwin-CPython-2.7-64bit/0001_mac.20181001.json
 
 import argparse
 import json
@@ -15,7 +15,7 @@ import pandas as pd
 CACHE_PATH = './cache'
 
 def to_df(file_name):
-    """ convert stats to pandas DataFrame 
+    """ convert stats to pandas DataFrame
         Args: file_name (str) JSON file to load
         Returns: df (DataFrame) converted stats
     """
@@ -46,7 +46,7 @@ def to_df(file_name):
 
 
 def display_stats(df):
-    """ display stats stored in a pandas DataFrame 
+    """ display stats stored in a pandas DataFrame
         Args: df (DataFrame) stats converted from JSON using to_df()
     """
     print(df.sort_values(by='mean (us)'))

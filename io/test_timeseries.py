@@ -17,8 +17,8 @@ DATA_PATH = os.path.join(dirname, '../data')
 # S3_SPEED = 20000000.0
 
 def test_setup_timeseries():
-    """ setup: read the original source DataFrame and 
-        save to various file formats in the cache 
+    """ setup: read the original source DataFrame and
+        save to various file formats in the cache
     """
     # read source DataFrame - index: datetime[64], columns: bid (float), ask (float)
     df = pd.read_pickle(os.path.join(DATA_PATH, 'ts_float.pkl'))
