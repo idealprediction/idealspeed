@@ -1,225 +1,213 @@
-# performance tests for read/write io for time series
-# run "py.test" in the command line to run tests
-# run "py.test -s" to disable stdout capture to see the file size results
+""" performance tests for read/write io for time series
+    run "py.test" in the command line to run tests
+    run "py.test -s" to disable stdout capture to view the file size results
+
+    notes:
+    - as of pandas 2.1, parquet compression options are 'snappy’, ‘gzip’, ‘brotli’, ‘lz4’, ‘zstd’
+"""
+
+from functools import partial
 import os
+import pathlib
+from typing import Optional
+
 import pandas as pd
-import numpy as np
-import lz4.frame
+
 
 # global variables for the data and cache paths
 dirname, filename = os.path.split(os.path.abspath(__file__))
-CACHE_PATH = os.path.join(dirname, '../cache')
-DATA_PATH = os.path.join(dirname, '../data')
+path = pathlib.Path(dirname)
+CACHE_PATH = path.parent / "cache"
+DATA_PATH = path.parent / "data"  # path.joinpath("../data")
 
-# global variables for simulating network time (not currently used)
-# from time import sleep
-# WITH_NETWORK_SIMULATION = False
-# S3_SPEED = 20000000.0
+# test pd.DataFrame
+DF_TEST = pd.read_pickle(DATA_PATH / "ts_float.pkl")
+
+# file format and compression to test
+TEST_FORMATS = ["csv", "parquet", "pickle"]
+TEST_COMPRESSIONS = [None, "gzip", "xz", "zstd"]
+
+
+def get_file_name(format: str, compression: Optional[str]) -> pathlib.Path:
+    """file name for the pd.DataFrame with the specified format and compression"""
+    file_name = f"ts.{format}_{str(compression)}.{format}"
+    if compression:
+        file_name += f".{compression}"
+    return CACHE_PATH / file_name
+
+
+def read_df(format: str, compression: Optional[str]) -> pd.DataFrame:
+    """write a file with a specified format and compression"""
+    file_name = get_file_name(format=format, compression=compression)
+    df = pd.DataFrame()
+    match format:
+        case "csv":
+            df = pd.read_csv(file_name, compression=compression)
+        case "parquet":
+            df = pd.read_parquet(file_name, engine="pyarrow")
+        case "pickle":
+            df = pd.read_pickle(file_name, compression=compression)
+        case _:
+            raise Exception(f"unknown format {format}")
+    return df
+
+
+def write_df(df: pd.DataFrame, format: str, compression: Optional[str]):
+    """write a file with a specified format and compression"""
+    file_name = get_file_name(format=format, compression=compression)
+
+    # write the df
+    match format:
+        case "csv":
+            df.to_csv(file_name, compression=compression)
+        case "parquet":
+            df.to_parquet(file_name, compression=compression)
+        case "pickle":
+            df.to_pickle(file_name, compression=compression)
+        case _:
+            raise Exception(f"unknown format {format}")
+
 
 def test_setup_timeseries():
-    """ setup: read the original source DataFrame and
-        save to various file formats in the cache
+    """setup: read the original source DataFrame and
+    save to various file formats in the cache
     """
-    # read source DataFrame - index: datetime[64], columns: bid (float), ask (float)
-    df = pd.read_pickle(os.path.join(DATA_PATH, 'ts_float.pkl'))
+    # create a path for DataFrames, if needed
+    print(f"setup is using data from a pd.DataFrame with {len(DF_TEST)} rows")
+    print(f"setup is writing pd.DataFrame files to path = {str(CACHE_PATH)}")
+    CACHE_PATH.mkdir(exist_ok=True)
 
-    # create the cache path, if needed
-    if not os.path.exists(CACHE_PATH):
-        os.makedirs(CACHE_PATH)
+    # write file versions, skipping parquet/xz
+    for fmt in TEST_FORMATS:
+        for compression in TEST_COMPRESSIONS:
+            if fmt == "parquet" and compression == "xz":
+                continue
+            write_df(df=DF_TEST, format=fmt, compression=compression)
 
-    # CSV
-    df.to_csv(os.path.join(CACHE_PATH, 'ts_float_csv.csv'))
-    df.to_csv(os.path.join(CACHE_PATH, 'ts_float_csv_gzip.gz'), compression='gzip')
-
-    # parquet
-    df.to_parquet(os.path.join(CACHE_PATH, 'ts_float_parq.parq'))
-    df.to_parquet(os.path.join(CACHE_PATH, 'ts_float_parq_gzip.gz'), compression='gzip')
-    df.to_parquet(os.path.join(CACHE_PATH, 'ts_float_parq_snappy.snappy'), compression='snappy')
-
-    # pickle
-    df.to_pickle(os.path.join(CACHE_PATH, 'ts_float_pickle.pkl'))
-    df.to_pickle(os.path.join(CACHE_PATH, 'ts_float_pickle_gzip.gz'), compression='gzip')
-
-
-    # numpy: Construct an array in the form [[column names, index(timestamp), values]]
-    column_names = np.array(np.insert(df.columns.values, 0, df.index.name), dtype='string')
-    index = np.array(df.index, dtype='datetime64')
-    data = np.array(df.values, dtype='float')
-    np.save(os.path.join(CACHE_PATH, 'ts_float_numpy.npy'), np.array([column_names, index, data]))
-
-    # TODO: pd.DataFrame.to_hdf() hangs the process
-    # df.to_hdf('../cache/ts_float_no_compr.hdf', key='df', complevel=0)
-    # df.to_hdf('../cache/ts_float_snappy.hdf', key='df', complib='blosc:snappy', complevel=9)
-    # df.to_hdf('../cache/ts_float_lz4.hdf', key='df', complib='blosc:lz4', complevel=9)
-
-    # # hdf5 numpy array
-    # h5f = h5py.File(os.path.join(CACHE_PATH, 'ts_float_numpy.h5'), 'w')
-    # h5f.create_dataset('data', data=np.array([column_names, df.reset_index().values]))
-    # h5f.close()
-
-    # Convert datetime64 to int
-    df.index = df.index.astype(int)
-    df.to_pickle(os.path.join(CACHE_PATH, 'ts_float_int_timestamp.pkl'))
-
-    column_names = np.array(np.insert(df.columns.values, 0, df.index.name), dtype='string')
-    index = np.array(df.index, dtype='int')
-    data = np.array(df.values, dtype='float')
-    np.save(os.path.join(CACHE_PATH, 'ts_float_numpy_int_datetime.npy'), np.array([column_names, index, data]))
-
-
-# def network_simulation(filename):
-#     if WITH_NETWORK_SIMULATION:
-#         file_size = os.path.getsize(filename)
-#         sleep(file_size / S3_SPEED)
-
-def read_ts_float_csv():
-    fn = os.path.join(CACHE_PATH, 'ts_float_csv.csv')
-    df = pd.read_csv(fn)
-
-
-def read_ts_float_csv_gz():
-    fn = os.path.join(CACHE_PATH, 'ts_float_csv_gzip.gz')
-    df = pd.read_csv(fn, compression='gzip')
-
-
-def read_ts_float_pickle():
-    fn = os.path.join(CACHE_PATH, 'ts_float_pickle.pkl')
-    df = pd.read_pickle(fn)
-
-
-def read_ts_float_pickle_gz():
-    fn = os.path.join(CACHE_PATH, 'ts_float_pickle_gzip.gz')
-    df = pd.read_pickle(fn, compression='gzip')
-
-
-def read_ts_float_parquet():
-    fn = os.path.join(CACHE_PATH, 'ts_float_parq.parq')
-    df = pd.read_parquet(fn)
-
-
-def read_ts_float_parquet_gz(nthreads=1):
-    fn = os.path.join(CACHE_PATH, 'ts_float_parq_gzip.gz')
-    df = pd.read_parquet(fn, engine='pyarrow', nthreads=nthreads)
-
-
-def read_ts_float_parquet_snappy(nthreads=1):
-    fn = os.path.join(CACHE_PATH, 'ts_float_parq_snappy.snappy')
-    df = pd.read_parquet(fn, engine='pyarrow', nthreads=nthreads)
-
-def read_ts_float_numpy():
-    fn = os.path.join(CACHE_PATH, 'ts_float_numpy.npy')
-    numpy_matrix = np.load(fn)
-
-    # Deconstruct the dataframe from numpy array with column names and index
-    df = pd.DataFrame(data=numpy_matrix[2], columns=numpy_matrix[0][1:], index=numpy_matrix[1])
-    df.index.names = [numpy_matrix[0][0]]
-
-# def read_ts_float_hdf_no_compr():
-#     fn = os.path.join(CACHE_PATH, 'ts_float_no_compr.hdf')
-#     df = pd.read_hdf(fn)
-
-
-# def read_ts_float_hdf_snappy():
-#     fn = os.path.join(CACHE_PATH, 'ts_float_snappy.hdf')
-#     df = pd.read_hdf(fn)
-
-
-# def read_ts_float_hdf_lz4():
-#     fn = os.path.join(CACHE_PATH, 'ts_float_lz4.hdf')
-#     df = pd.read_hdf(fn)
-
-# def read_ts_float_numpy_hdf():
-#     fn = os.path.join(CACHE_PATH, 'ts_float_numpy.h5')
-#     h5f = h5py.File(fn, 'r')
-#     numpy_matrix = h5f['data'][:]
-#     df = pd.DataFrame(data=numpy_matrix[1][:, 1:], columns=numpy_matrix[0][1:], index=numpy_matrix[1][:, 0])
-#     df.index.names = [numpy_matrix[0][0]]
-
-def read_ts_pickle_int_datetime():
-
-    df = pd.read_pickle(os.path.join(CACHE_PATH, 'ts_float_int_timestamp.pkl'))
-    df.index = pd.to_datetime(df.index)
-
-def read_ts_pickle_int_datetime_no_conversion():
-
-    df = pd.read_pickle(os.path.join(CACHE_PATH, 'ts_float_int_timestamp.pkl'))
-
-def read_ts_float_numpy_int_datetime():
-    fn = os.path.join(CACHE_PATH, 'ts_float_numpy_int_datetime.npy')
-    numpy_matrix = np.load(fn)
-
-    # Deconstruct the dataframe from numpy array with column names and index
-    df = pd.DataFrame(data=numpy_matrix[2], columns=numpy_matrix[0][1:], index=numpy_matrix[1])
-    df.index.names = [numpy_matrix[0][0]]
 
 # these functions use the benchmark fixture in py.test
 # see https://github.com/ionelmc/pytest-benchmark
-def test_read_ts_float_csv(benchmark):
-    benchmark(read_ts_float_csv)
+# -- CSV ---
+def test_read_csv_none(benchmark):
+    func = partial(read_df, "csv", None)
+    benchmark(func)
 
 
-def test_read_ts_float_csv_gzip(benchmark):
-    benchmark(read_ts_float_csv_gz)
-
-def test_read_ts_float_numpy(benchmark):
-    benchmark(read_ts_float_numpy)
-
-def test_read_ts_float_parq(benchmark):
-    benchmark(read_ts_float_parquet)
+def test_read_csv_gzip(benchmark):
+    func = partial(read_df, "csv", "gzip")
+    benchmark(func)
 
 
-def test_read_ts_float_parq_gzip(benchmark):
-    benchmark(read_ts_float_parquet_gz)
+def test_read_csv_xz(benchmark):
+    func = partial(read_df, "csv", "xz")
+    benchmark(func)
 
 
-def test_read_ts_float_parquet_gz_4_threads(benchmark):
-    benchmark(read_ts_float_parquet_gz, 4)
+def test_read_csv_zstd(benchmark):
+    func = partial(read_df, "csv", "zstd")
+    benchmark(func)
 
 
-def test_read_ts_float_parq_snappy(benchmark):
-    benchmark(read_ts_float_parquet_snappy)
+def test_write_csv_none(benchmark):
+    func = partial(write_df, DF_TEST, "csv", None)
+    benchmark(func)
 
 
-def test_read_ts_float_pickle(benchmark):
-    benchmark(read_ts_float_pickle)
+def test_write_csv_gzip(benchmark):
+    func = partial(write_df, DF_TEST, "csv", "gzip")
+    benchmark(func)
 
 
-def test_read_ts_float_pickle_gzip(benchmark):
-    benchmark(read_ts_float_pickle_gz)
-
-def test_read_ts_int_datetime(benchmark):
-    benchmark(read_ts_pickle_int_datetime)
-
-def test_read_ts_int_datetime_no_conversion(benchmark):
-    benchmark(read_ts_pickle_int_datetime_no_conversion)
-
-def test_read_ts_float_numpy_int_datetime(benchmark):
-    benchmark(read_ts_float_numpy_int_datetime)
-
-# def test_read_ts_float_numpy_hdf(benchmark):
-#     benchmark(read_ts_float_numpy_hdf)
-
-# def test_read_ts_float_hdf_no_compr(benchmark):
-#     benchmark(read_ts_float_hdf_no_compr)
+def test_write_csv_xz(benchmark):
+    func = partial(write_df, DF_TEST, "csv", "xz")
+    benchmark(func)
 
 
-# def test_read_ts_float_hdf_snappy(benchmark):
-#     benchmark(read_ts_float_hdf_snappy)
+def test_write_csv_zstd(benchmark):
+    func = partial(write_df, DF_TEST, "csv", "zstd")
+    benchmark(func)
 
 
-# def test_read_ts_float_hdf_lz4(benchmark):
-#     benchmark(read_ts_float_hdf_lz4)
+# --- PARQUET ---
+def test_read_parquet_none(benchmark):
+    func = partial(read_df, "parquet", None)
+    benchmark(func)
+
+
+def test_read_parquet_gzip(benchmark):
+    func = partial(read_df, "parquet", "gzip")
+    benchmark(func)
+
+
+def test_read_parquet_zstd(benchmark):
+    func = partial(read_df, "parquet", "zstd")
+    benchmark(func)
+
+
+def test_write_parquet_none(benchmark):
+    func = partial(write_df, DF_TEST, "parquet", None)
+    benchmark(func)
+
+
+def test_write_parquet_gzip(benchmark):
+    func = partial(write_df, DF_TEST, "parquet", "gzip")
+    benchmark(func)
+
+
+def test_write_parquet_zstd(benchmark):
+    func = partial(write_df, DF_TEST, "parquet", "zstd")
+    benchmark(func)
+
+
+# --- PICKLE ---
+def test_read_pickle_none(benchmark):
+    func = partial(read_df, "pickle", None)
+    benchmark(func)
+
+
+def test_read_pickle_gzip(benchmark):
+    func = partial(read_df, "pickle", "gzip")
+    benchmark(func)
+
+
+def test_read_pickle_xz(benchmark):
+    func = partial(read_df, "pickle", "xz")
+    benchmark(func)
+
+
+def test_read_pickle_zstd(benchmark):
+    func = partial(read_df, "pickle", "zstd")
+    benchmark(func)
+
+
+def test_write_pickle_none(benchmark):
+    func = partial(write_df, DF_TEST, "pickle", None)
+    benchmark(func)
+
+
+def test_write_pickle_gzip(benchmark):
+    func = partial(write_df, DF_TEST, "pickle", "gzip")
+    benchmark(func)
+
+
+def test_write_pickle_xz(benchmark):
+    func = partial(write_df, DF_TEST, "pickle", "xz")
+    benchmark(func)
+
+
+def test_write_pickle_zstd(benchmark):
+    func = partial(write_df, DF_TEST, "pickle", "zstd")
+    benchmark(func)
+
 
 def test_display_file_size():
-    """  show the file size in MB, rounded to 2 decimals, for each file type """
-    file_list = os.listdir(CACHE_PATH)
-    file_list = [fn for fn in file_list if 'ts_' in fn]
-    size_list = [os.path.getsize(os.path.join(CACHE_PATH, fn)) / 1e6 for fn in file_list]
+    """show the file size in MB, rounded to 2 decimals, for each file type"""
+    file_list = list(CACHE_PATH.glob("ts.*"))
+    size_list = [(CACHE_PATH / fn).stat().st_size / 1e6 for fn in file_list]
     size_list = [round(sz, 2) for sz in size_list]
     file_dict = dict(zip(file_list, size_list))
-    print('File Size (MB)\n %s' % file_dict)
 
-    # uncomment to show the each file and size per row
-    # print('File Size (MB)\n')
-    # for key, value in file_dict.iteritems():
-    #     print('%s: %0.1f MB' % (key, value))
+    # show each file and size per row
+    print("File Size (MB) = f(format, compression)\n")
+    for file_name, file_size in file_dict.items():
+        print(f"""{file_size} MB for {file_name.name}""")
